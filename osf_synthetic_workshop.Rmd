@@ -1,0 +1,550 @@
+---
+title: "Synthetic data in `R`: Generating synthetic data with high utility using `synthpop`"
+author: "Thom Volker, Raoul Schram, Erik-Jan van Kesteren"
+bibliography: files/synthetic-osf-workshop.bib
+link-citations: true
+output: 
+  html_document:
+  toc: true
+toc_depth: 3
+toc_float: true
+number_sections: false
+---
+  
+<style type="text/css">
+  
+body{ /* Normal  */
+      font-size: 12px;
+  }
+td {  /* Table  */
+    font-size: 12px;
+}
+h1.title {
+  font-size: 18px;
+  color: DarkBlue;
+}
+h1 { /* Header 1 */
+    font-size: 18px;
+}
+h2 { /* Header 2 */
+    font-size: 18px;
+}
+h3 { /* Header 3 */
+    font-size: 18px;
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+  
+  ---
+
+
+
+# Introduction
+
+---
+
+In this workshop, you will learn how to create and evaluate synthetic data in `R`. In the practical, we will work with the `R` package `synthpop` [@synthpop], which is one of the most advanced and dedicated packages in `R` to create synthetic data. Other alternatives to create synthetic data are, for example, the R-package `mice` [@mice; see @volker_vink_synthetic_mice_2021], or the stand-alone software `IVEware` [@iveware]. 
+
+If you have `R` and `R Studio` installed on your device, you can follow all the steps from this practical using your local version of R Studio. In case you do not have an installation of `R` and `R Studio`, you can quickly create an account on [R Studio Cloud](https://login.rstudio.cloud/register). Note that you have the opportunity to work with your own data (you can also use data provided by us). If you are going to work via `R Studio Cloud`, you may not want to upload your own data to this server. In this case, you can still decide to work with the data provided by us. Theoretically, you could also install `R` and `R Studio` on the spot, but since we only have 45 minutes, we advise to use `R Studio Cloud` if you have no access to `R` and `R Studio` on your device already.
+
+In this workshop, you will (at least) use the following packages. Make sure to load them (in case you haven't installed them already, install them first, using `install.packages("package.name")`).
+
+```{r load-packages, message=F, warning=F}
+library(synthpop)
+library(magrittr)
+library(psych)
+```
+
+---
+
+# Data
+
+---
+
+For this workshop, we have prepared all exercises with the *Heart failure clinical records* data set. However, you may also choose to work with a data set of your own liking. All steps exercises and solutions that we outline here should be applicable to another data set as well, but some data processing might be required before our example code works as it should. In the worst case, you might run into errors that we could not foresee, but we are more than happy to think along and help you to solve these issues. 
+
+
+---
+
+## Heart failure clinical records
+
+---
+
+The *Heart failure clinical records* data set is a medical data set from the UCI Machine Learning Repository ([click here for the source](archive.ics.uci.edu/ml/datasets/Heart+failure+clinical+records)), originally collected by @tanvir_heart_failure_2017 from the Government College University, Faisalabad, Pakistan, and adapted and uploaded to the UCI MLR by @chicco_ml_2020. This data set contains medical information of `r nrow(readRDS("data//heart_failure.RDS"))` individuals on `r ncol(readRDS("data//heart_failure.RDS"))` variables, and is typically used to predict whether or not a patient will survive during the follow-up period, using several biomedical predictors.
+
+
+If you decide to work with the *Heart failure clinical records* data and work in `R Studio Cloud`, you can access the environment related to this workshop [here](https://rstudio.cloud/content/4342038), including a script that gets you started on installing and loading the required packages, and that imports the data for you. You can continue to work in this script.
+
+If you have `R Studio` installed on your own machine, you can download the *cleaned* version of the *Heart failure clinical records* data set from my GitHub and load it as `heart_failure`, by running the following line of code.
+
+```{r load-data}
+heart_failure <- readRDS(url("https://thomvolker.github.io/osf_synthetic/data/heart_failure.RDS"))
+```
+
+The *Heart failure clinical records* data consists of the following variables:
+
+```{r variables, echo=F, results='asis'}
+paste0("- `", 
+       colnames(heart_failure), 
+       "`: ", 
+       sapply(heart_failure, expss::var_lab),
+       collapse = " \n") %>%
+  cat()
+```
+
+After loading the data, it is always wise to first inspect the data, so that you have an idea what to expect. 
+
+```{r head-data, results=FALSE}
+head(heart_failure)
+```
+
+```{r head-data-show, echo=F, message=F, warning=FALSE}
+heart_failure %>%
+  head() %>%
+  knitr::kable() %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  kableExtra::scroll_box(width = "100%")
+```
+
+Additionally, we can ask for a summary of all variables, or use `describe()` from the `psych`-package to provide descriptive statistics of all variables.
+
+*Note.* Make sure to install `psych` if you haven't done so in the past.
+
+```{r summary-data}
+summary(heart_failure)
+```
+
+This gives a good impression about the measurement levels of all variables, as well as the range of the possible values each variable can have. 
+
+```{r describe-data, eval=F}
+describe(heart_failure)
+```
+
+```{r describe-data-knitr, echo=FALSE}
+heart_failure %>%
+  describe() %>%
+  knitr::kable() %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  kableExtra::scroll_box(width = "100%")
+```
+
+
+The `describe()` function gives more distributional information about all variables. 
+
+---
+
+### Loading your own data
+
+---
+
+In case you brought your own data, you can load it into `R` using a function that matches your data format. Below, you can find several functions that might be helpful if you want to load the your data into `R`. You can use these functions both locally, or on `R Studio Cloud`, but make sure to install the required package first.
+
+```{r load-own-data, echo = F}
+tibble::tibble(`Programme` = c("Excel", "Excel", "SPSS", "Stata"), 
+               `Format` = c(".csv", ".xlsx", ".sav", ".dta"), 
+               `Command` = c('readxl::read_xlsx("path_to_file/data_name.xlsx")',
+                             'readr::read_csv("path_to_file/data_name.csv")',
+                             'haven::read_sav("path_to_file/data_name.sav")',
+                             'haven::read_dta("path_to_file/data_name.dta")')) %>%
+  knitr::kable() %>%
+  kableExtra::kable_styling(c("striped", "hover"))
+```
+
+After loading in your own data, make sure that the variables in your data are coded accordingly (this can go wrong when transferring between data types). That is, make sure that your categorical variables are coded as factors and your numeric variables as numeric variables. To do so, you can make use of the following code. Note, however, that this is not a workshop on data wrangling: if importing your data into `R` creates a mess, it might be better to use the *Heart failure clinical records data*, so that you can spend your valuable time on creating synthetic data.
+
+```{r reformat-variables, eval=FALSE}
+data_name$variable  <- as.numeric(data_name$variable)
+data_name$variable2 <- factor(data_name$variable, 
+                              levels = values,       # values of the data
+                              labels = value_labels) # labels of these values
+```
+
+If your data has the correct format, we can proceed to the next steps. Given that you are using your own data, we assume that you have (at least some) knowledge about the variables in your data. We will therefore skip the steps to obtain some descriptive information of the variables in your data, and continue to creating and evaluating synthetic data. 
+
+In the sequel, we will outline how to create and evaluate synthetic data using the *Heart failure clinical records* data, but most of these steps should be directly applicable to your own data. In case something gives an error, do not hesitate to ask how the problem can be solved!
+
+---
+
+# Creating synthetic data
+
+---
+
+In the part, you created synthetic data using univariate imputation methods. Relationships between variables were completely neglected. In this part, you will create synthetic data that preserves the relationships between the variables in the data.
+
+Using the default settings, `synthpop` proceeds as follows. The first variable is randomly sampled from the observed data, such that a random subset of the original values is used, without taking relations with the other variables into account. Subsequently, the second variable is generated using a classification / regression tree (CART). A CART model is trained on the observed data, using the first variable as a predictor, and the second variable as the outcome. The first synthetic variable is used to predict the second synthetic variable (by sampling predicted values from the final nodes of the CART model trained on the observed data). The next step is to apply this procedure for the third variable, using variable 1 and 2 as predictors. This procedure is repeated, sequentially using additional predictors in the generative model, until all but the last variable are used as predictors for the last variable. By incrementally incorporating variables, the relations in the original data are generally preserved in the synthetic data. 
+
+---
+
+__1.__ Use the `syn()` function from the `synthpop` package to create a synthetic version of your data, using the default settings. 
+
+---
+
+__OPTIONAL.__ Fix the random seed before generating the synthetic data, so that you can compare your output with our output. 
+
+---
+
+```{r}
+set.seed(123)
+
+synthetic <- syn(heart_failure)
+```
+
+You have now created the object `synthetic`, which is of class `r class(synthetic)` and contains several pieces of information related to your synthetic data. We will quickly go over the most important output. 
+
+---
+
+__2.__ Inspect the output object, and pay attention to the number of synthetic data sets, the synthesis methods, the visit sequence and the predictor matrix.
+
+---
+
+```{r}
+synthetic
+```
+
+If all went well, you should have a single synthetic data set (increasing $m$, the number of synthetic data sets, can decrease the variance of inferences on synthetic data). 
+Also, the first variable should have synthesis method `"sample"`, whereas all other variables should have method `"cart"`. 
+The visit sequence should increase sequentially from $1$ to the number of variables in your data set ($13$ if you are using the *Heart failure clinical records* data).
+Lastly, the predictor matrix shows which variables in the rows are used to predict the variable in the columns (and should be a lower triangular matrix containing ones, excluding the diagonal). 
+
+---
+
+# Assessing utility on a univariate level
+
+---
+
+The quality of synthetic data sets can be assessed on multiple levels and in multiple different ways.
+Starting on a univariate level, we can assess whether similar values seem to appear in the synthetic data as in the observed data. 
+Additionally, the distributions of the synthetic data sets can be compared with the distribution of the observed data.
+
+---
+
+__3.__ Inspect the synthetic data by asking for `head(synthetic$syn)` and `tail(synthetic$syn)`, to check whether the synthetic data looks similar to the observed data. 
+
+
+```{r, results = F}
+head(synthetic$syn)
+tail(synthetic$syn)
+```
+
+```{r, echo=F}
+head(synthetic$syn) %>%
+  knitr::kable() %>%
+  kableExtra::kable_styling(c("striped", "hover")) %>%
+  kableExtra::scroll_box(width = "100%")
+
+tail(synthetic$syn) %>%
+  knitr::kable() %>%
+  kableExtra::kable_styling(c("striped", "hover")) %>%
+  kableExtra::scroll_box(width = "100%")
+```
+
+If all went well, you should at least observe that the variables in the synthetic data have the same measurement level as the variables in the observed data. 
+
+---
+
+__4.__ Check the distributional similarity by comparing the summary of the observed and synthetic data. Additionally, you may inspect the similarity by running `describe()` from the `psych`-package on both the observed and the synthetic data.
+
+```{r}
+summary(heart_failure)
+summary(synthetic$syn)
+```
+
+```{r, results=F}
+describe(heart_failure)
+describe(synthetic$syn)
+```
+
+```{r, echo=F}
+describe(heart_failure) %>%
+  knitr::kable() %>%
+  kableExtra::kable_styling(c("striped", "hover")) %>%
+  kableExtra::scroll_box(width = "100%")
+
+describe(synthetic$syn) %>%
+  knitr::kable() %>%
+  kableExtra::kable_styling(c("striped", "hover")) %>%
+  kableExtra::scroll_box(width = "100%")
+```
+
+In principle, you should observe that on a univariate level, the information in the observed and synthetic data is quite similar. That is, all variables are similarly distributed, with only small differences between the means and variances in the observed and synthetic data. Higher-order moments as the skewness and kurtosis are also reasonably close. 
+
+---
+
+__5.__ Inspect the univariate distributional similarity of the observed and synthetic data in more detail, using the function `compare()` from the `synthpop`-package. 
+
+```{r}
+compare(synthetic, heart_failure)
+```
+
+---
+
+In each of these figures, the distribution of the observed and synthetic data should be similar. That is, the bars of the histograms corresponding to the same categories should have approximately the same height. 
+
+---
+
+A more formal quantification of the similarity between the synthetic and the observed data is provided by the $pMSE$ values (there are tons of other utility measures available, see, for example [this paper](https://arxiv.org/pdf/2109.12717.pdf), for now, we will focus on the $pMSE$). These values can quantify univariate or multivariate similarity, but in the output displayed by `compare()`, they solely concern univariate similarity.
+
+Technically, the $pMSE$ is defined by
+$$
+pMSE = 
+\frac{1}{n_{\text{obs}} + n_{\text{syn}}} 
+\sum^{n_{\text{obs}}}_{i=1}\Big(\hat{\pi_i} - \frac{n_{\text{syn}}}{n_{\text{obs}} + n_{\text{syn}}}\Big)^2 +
+\sum^{n_{\text{syn}}}_{i=1}\Big(\hat{\pi_i} - \frac{n_{\text{syn}}}{n_{\text{obs}} + n_{\text{syn}}}\Big)^2,
+$$
+which, in our case, simplifies to 
+$$
+pMSE = \frac{1}{n_{\text{obs}} + n_{\text{syn}}} 
+\sum^{n_{\text{obs}}}_{i=1} (\hat{\pi_i} - 0.5)^2 +
+\sum^{n_{\text{syn}}}_{i=1} (\hat{\pi_i} - 0.5)^2,
+$$
+where $n_{\text{obs}}$ is the sample size of the observed data, $n_{\text{syn}}$ is the number of synthetic records, and $\hat{\pi_i}$ is each observation's predicted probability of being a synthetic record. 
+Intuitively, this method quantifies to what extent it is possible to predict whether an observation is a "true" record or a synthetic record. 
+When it is possible to accurately predict whether an observation comes from the real data, there are important differences between the observed and synthetic data on some variables. 
+
+---
+
+__OPTIONAL.__ Calculate the $pMSE$ for the variables `diabetes` and `age` by hand, and check whether the values correspond to the values reported by `synthpop`'s `compare()`-function.
+
+*Hint.* For continuous variables, `synthpop` creates a categorical variable with $5$ categories using 5 quantiles of equal size, using `cut(x, breaks = quantile(x, 0:5/5), right=F, include.lowest=T)`
+
+```{r}
+# Create an indicator for whether an observation belongs to the true or synthetic
+# data
+ind <- factor(c(rep("Real", nrow(heart_failure)),  
+                rep("Syn", nrow(synthetic$syn))))
+
+# Combine the true and synthetic diabetes scores
+obs_syn_diabetes <- c(heart_failure$diabetes, synthetic$syn$diabetes)
+
+# Calculate predicted probabilities of whether an observation is "real" or 
+# "synthetic" based on it's diabetes value.
+pi_diabetes <- glm(ind ~ obs_syn_diabetes, family = binomial) %>%
+  predict(type = "response")
+
+pMSE_diabetes <- mean((pi_diabetes - 0.5)^2)
+pMSE_diabetes
+```
+
+```{r}
+# Combine observed and synthetic age values into a single vector
+obs_syn_age <- c(heart_failure$age, synthetic$syn$age)
+
+# Create a categorical version of this vector with 5 categories
+obs_syn_age_cat <- cut(obs_syn_age, 
+                       breaks = quantile(obs_syn_age, probs = 0:5/5),
+                       right = FALSE,
+                       include.lowest = TRUE)
+
+pi_age <- glm(ind ~ obs_syn_age_cat, family = binomial) %>%
+  predict(type = "response")
+
+pMSE_age <- mean((pi_age - 0.5)^2)
+pMSE_age
+```
+
+To correct for the complexity of the model (that is, the number of parameters used to estimate the predicted probabilities of being a true or synthetic record), the $pMSE$ is often standardized. Given that we used the logistic regression model, the standardized $pMSE$ is defined by
+$$
+S pMSE = 
+\frac{pMSE}
+{(k-1)(\frac{n_{\text{obs}}}{n_{\text{syn}} + n_{\text{obs}}})^2(\frac{n_{\text{syn}}}{n_{\text{syn}} + n_{\text{obs}}}) / (n_{\text{obs}} + n_{\text{syn}})}.
+$$
+Given that we used an equal number of observed and synthetic records, this formula reduces to
+$$
+S pMSE = 
+\frac{pMSE}
+{(k-1)\Big(\frac{1}{2}\Big)^3 / (n_{\text{obs}} + n_{\text{syn}})}.
+$$
+
+For the previously calculated $pMSE$ values of `diabetes` and `age`, we can calculate the standardized $pMSE$ values as follows.
+
+```{r}
+SpMSE_diabetes <- pMSE_diabetes / (1 * (0.5^3 / length(ind)))
+SpMSE_diabetes
+
+SpMSE_age <- pMSE_age / (4 * (0.5^3 / length(ind)))
+SpMSE_age
+```
+
+---
+
+In this case, we have been able to generate synthetic data that is quite similar to the observed data on a univariate level.
+
+However, given the multivariate synthesizing procedure, univariate similarity between the observed and synthetic data is not sufficient. We also want that relationships between the variables are preserved, that is, we want the synthetic and observed data to be similar on a multivariate level as well.
+
+---
+
+# Assessing utility on a multivariate level
+
+---
+
+On a univariate level, visual inspection of similarity between observed and synthetic data generally gives the most detailed overview. 
+However, visualizing multivariate relationships quickly becomes an onerous task, especially as the dimensionality of the data increases. Hence, we have to rely on different methods to inspect how well the synthetic data preserves relationships between variables.
+
+In the synthetic data literature, an often made distinction is the one between general and specific utility measures. 
+General utility measures assess to what extent the relationships between combinations of variables (and potential interactions between them) are preserved in the synthetic data set.
+These measures are often for pairs of variables, or for all combinations of variables. 
+Specific utility measures focus, as the name already suggests, on a specific analysis. 
+This analysis is performed on the observed data and the synthetic data, and the similarity between inferences on these data sets is quantified.
+
+---
+
+## General utility measures
+
+---
+
+First, we can inspect which interactions of variables can predict whether observations are "true" or "synthetic" using the standardized $pMSE$ measure, similarly to what we just did using individual variables.
+Hence, we predict whether observations can be classified based on the interaction of two variables.
+Again, continuous variables are by default recoded as categorical variables with $5$ categories.
+
+Ideally, the standardized $pMSE$ equals $1$, but according to the `synthpop` authors, values below $10$ are indicative of high utility. 
+
+---
+
+__6.__ Use the function `utility.tables()` to inspect whether any interaction of two variables can predict whether observations are "real" or "synthetic". 
+
+```{r}
+utility.tables(synthetic, heart_failure)
+```
+
+The maximum standardized $pMSE$ value equals 2.55, which is well below the threshold value of $10$ that is given by the `synthpop` authors.
+This shows that none of the interactions between any pair of variables is capable of distinguishing observed records from synthetic records. 
+
+---
+
+As a next step, we can assess whether a model containing all variables is capable of predicting which observations are real and which are synthetic. 
+
+---
+
+__7.__ Use the function `utility.gen()` with parameter `method = "logit"` to calculate the standardized $pMSE$ based on a logistic prediction model with all variables included as predictors (the default).
+
+```{r}
+utility.gen(synthetic, heart_failure, method = "logit")
+```
+
+The standardized $pMSE$ is very close to $1$, indicating that also the combination of all variables cannot predict whether the observations stem from the observed or the synthetic data. 
+However, a logistic model without interaction terms may miss important interactions that were present in the observed data, but that were not reproduced in the synthetic data.
+CART models are better capable to assess such interactions.
+
+---
+
+__8.__ Use the function `utility.gen()` with parameter `method = "cart"` to calculate the standardized $pMSE$.
+
+*Note. `CART` does not have an analytical expression of the standardized $pMSE$, which is therefore calculated using a permutation test.
+
+```{r}
+utility.gen(synthetic, heart_failure, method = "cart")
+```
+
+Again, the standardized $pMSE$ is very small. Hence, up to now, there are no indications that we have created data with poor utility. 
+
+If you would observe indications of poor utility (either due to one or two variables, or to a larger set of variables), it might be necessary to tweak the imputation model. The `synthpop` authors walk you through the first steps that you could take [here](https://arxiv.org/pdf/2109.12717.pdf).
+
+
+---
+
+## Specific utility measures
+
+Specific utility measures assess whether the same analysis on the observed and the synthetic data gives similar results. 
+Say that we are interested in, for instance, the relationship between whether a person survives, the age of this person, whether this person has diabetes and whether or not this person smokes, including the follow-up time as a control variable in the model.
+
+---
+
+__9.__ Fit this model as a logistic regression model using `glm.synds()` and inspect the output- using `summary()`, first solely focusing on the output on the synthetic data.
+
+
+```{r}
+syn_fit <- glm.synds(deceased ~ age + diabetes + smoking + follow_up, 
+                     family = binomial, 
+                     data = synthetic)
+
+summary(syn_fit)
+```
+
+Age and the follow up period are related to a person's survival chances, but whether a person has diabetes or whether the person smokes are not, at least, if we can trust the synthetic data.
+
+---
+
+__10.__ Compare the output of this model on the synthetic data with the output that would have been obtained when running the model on the observed data, using `compare.fit.synds()` on the fitted model object. 
+
+```{r}
+compare.fit.synds(syn_fit, heart_failure)
+```
+
+The figure shows that the confidence intervals for each of the regression coefficients are to a relatively large degree overlapping. On average, the intervals overlap for $71\%$, and the lack-of-fit tests indicate no significant lag-of-fit. Moreover, these results show that we would draw the same conclusions from the synthetic data as from the observed data.
+
+---
+
+# Statistical disclosure control
+
+Altogether, all our tests of utility indicated that we were able to generate high utility synthetic data, as we aimed for!
+However, it is generally the case that the greater the utility, the higher the loss of privacy. 
+Unfortunately, it is often complicated to evaluate how much privacy loss occurred due to synthesizing our data, not in the last place because hardly any formal measures of privacy loss for synthetic data exist. 
+
+In `synthpop`, there is one function to assess statistical disclosure control, which shows whether there are any unique observations in the observed data that are reproduced in the synthetic data, as these values might bear a relatively high risk of having there privacy disclosed. 
+Additionally, the `sdc()` function offers additional functionality that can be useful if you deem the remaining disclosure risks of the synthetic data too high. Options are to top/bottom code variables or to add noise to the continuous variables using smoothing. 
+
+---
+
+__11.__ Remove the unique observations in the observed data that are reproduced in the synthetic data, using `sdc()` with argument `rm.replicated.uniques = TRUE`.
+
+```{r}
+sdc_out <- sdc(synthetic, heart_failure, rm.replicated.uniques = TRUE)
+```
+
+There are no unique observations that were reproduced in the observed data, so there are no cases removed.
+
+---
+
+# Inferences using synthetic data
+
+Lastly, when you have obtained a synthetic data set and want to make inferences from this set, you have to be careful, because generating synthetic data adds variance to the already present sampling variance that you take into account when evaluating hypotheses. 
+Specifically, if you want to make inferences with respect to the sample of original observations, you can use unaltered analysis techniques and corresponding, conventional standard errors. 
+
+However, if you want to inferences with respect to the population the sample is taken from, you will have to adjust the standard errors, to account for the fact that the synthesis procedure adds additional variance. 
+The amount of variance that is added, depends on the number of synthetic data sets that are generated.
+Intuitively, when generating multiple synthetic data sets, the additional random noise that is induced by the synthesis cancels out, making the parameter estimates more stable. 
+So far, we have generated a single synthetic data set, but it might be possible to generate $2$, $5$, $10$ or $1000000$ synthetic data sets (be warned that more synthetic data sets means more information, so more disclosure risk). 
+
+When generating multiple ($m$) synthetic data sets, the point estimate of the parameter of interest $Q$ is obtained by pooling the synthetic data estimates 
+$$
+\bar{q}_m = \frac{1}{m} \sum^m_{i=1} \hat{q}_i,
+$$
+where $\hat{q_i}$ is the parameter estimate in each sample. 
+Additionally, the total variance over synthetic data sets $T_m$ of $Q$ is defined as
+$$
+T_m = \Bigg(1 + \frac{1}{m}\Bigg) \Bigg(\frac{1}{m}\Bigg) \sum^m_{i=1} v_i,
+$$
+where $v_i$ is defined as the estimated variance of the quantity in each sample.
+
+Given that we use only a single synthetic data set, the parameter estimate is defined as $\bar{q}_m = \hat{q}$ with corresponding variance $2v$. 
+
+---
+
+__12.__ For the analysis of interest (predicting survival by age, diabetes, smoking and the follow-up period), make inferences with respect to the population by calling `summary()` on the previously created `syn_fit` object, with parameter `population.inference = TRUE`.
+
+```{r}
+summary(syn_fit, population.inference = TRUE)
+```
+
+To assess whether the standard errors are adjusted accordingly, run
+```{r}
+sum_syn_fit <- summary(syn_fit)
+sqrt(sum_syn_fit$coefficients[,2]^2 * 2)
+```
+
+These standard errors are equal to the standard errors given by the summary function with argument `population.inference = TRUE`.
+
+---
+
+# References
+
+
+
+
+
+
