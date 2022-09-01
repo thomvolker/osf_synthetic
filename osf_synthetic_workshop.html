@@ -789,9 +789,11 @@ predictors.</p>
 <p>If you decide to work with the <em>Heart failure clinical
 records</em> data and work in <code>R Studio Cloud</code>, you can
 access the environment related to this workshop <a href="https://rstudio.cloud/content/4342038">here</a>, including a
-script that gets you started on installing and loading the required
-packages, and that imports the data for you. You can continue to work in
-this script.</p>
+script <code>osf_synthetic.R</code> that gets you started on installing
+and loading the required packages, and that imports the data for you.
+You can continue to work in this script. Make sure to save the project
+on your account, so that your changes are not deleted if you, for some
+reason, have to refresh the browser.</p>
 <p>If you have <code>R Studio</code> installed on your own machine, you
 can download the <em>cleaned</em> version of the <em>Heart failure
 clinical records</em> data set from my GitHub and load it as
@@ -1915,8 +1917,9 @@ synthetic &lt;- syn(heart_failure)</code></pre>
 ##  age anaemia creatinine_phosphokinase diabetes ejection_fraction platelets serum_creatinine serum_sodium sex smoking
 ##  hypertension deceased follow_up</code></pre>
 <p>You have now created the object <code>synthetic</code>, which is of
-class synds and contains several pieces of information related to your
-synthetic data. We will quickly go over the most important output.</p>
+class <code>synds</code> and contains several pieces of information
+related to your synthetic data. We will quickly go over the most
+important output.</p>
 <hr />
 <p><strong>2.</strong> Inspect the output object, and pay attention to
 the number of synthetic data sets, the synthesis methods, the visit
@@ -2043,6 +2046,12 @@ using the <em>Heart failure clinical records</em> data). Lastly, the
 predictor matrix shows which variables in the rows are used to predict
 the variable in the columns (and should be a lower triangular matrix
 containing ones, excluding the diagonal).</p>
+<p>The output object <code>synthetic</code> contains additional
+information, that you can access by specifically asking for it, using,
+for example, <code>synthetic$smoothing</code>, which shows for which of
+the variables smoothing was applied. In general, you will not need most
+of this information, but sometimes it can be helpful to check whether
+more sophisticated arguments were passed successfully.</p>
 <hr />
 </div>
 <div id="assessing-utility-on-a-univariate-level" class="section level1">
@@ -2056,8 +2065,8 @@ sets can be compared with the distribution of the observed data.</p>
 <hr />
 <p><strong>3.</strong> Inspect the synthetic data by asking for
 <code>head(synthetic$syn)</code> and <code>tail(synthetic$syn)</code>,
-to check whether the synthetic data looks similar to the observed
-data.</p>
+to check whether the synthetic data looks similar to the observed data
+(which we inspected previously already).</p>
 <pre class="r"><code>head(synthetic$syn)
 tail(synthetic$syn)</code></pre>
 <div style="border: 1px solid #ddd; padding: 5px; overflow-x: scroll; width:100%; ">
@@ -4014,12 +4023,13 @@ corresponding to the same categories should have approximately the same
 height.</p>
 <hr />
 <p>A more formal quantification of the similarity between the synthetic
-and the observed data is provided by the <span class="math inline">\(pMSE\)</span> values (there are tons of other
-utility measures available, see, for example <a href="https://arxiv.org/pdf/2109.12717.pdf">this paper</a>, for now, we
-will focus on the <span class="math inline">\(pMSE\)</span>). These
-values can quantify univariate or multivariate similarity, but in the
-output displayed by <code>compare()</code>, they solely concern
-univariate similarity.</p>
+and the observed data is provided by the <span class="math inline">\(pMSE\)</span> values. There are tons of other
+utility measures available, see, for example <a href="https://arxiv.org/pdf/2109.12717.pdf">this paper</a>, but for now,
+we will focus on the <span class="math inline">\(pMSE\)</span> (these
+utility measures tend to correlate highly anyway). These values can
+quantify univariate or multivariate similarity between the observed and
+synthetic data, but in the output of <code>compare()</code>, they solely
+concern univariate similarity.</p>
 <p>Technically, the <span class="math inline">\(pMSE\)</span> is defined
 by <span class="math display">\[
 pMSE =

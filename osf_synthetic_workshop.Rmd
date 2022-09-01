@@ -78,7 +78,7 @@ For this workshop, we have prepared all exercises with the *Heart failure clinic
 The *Heart failure clinical records* data set is a medical data set from the UCI Machine Learning Repository ([click here for the source](archive.ics.uci.edu/ml/datasets/Heart+failure+clinical+records)), originally collected by @tanvir_heart_failure_2017 from the Government College University, Faisalabad, Pakistan, and adapted and uploaded to the UCI MLR by @chicco_ml_2020. This data set contains medical information of `r nrow(readRDS("data//heart_failure.RDS"))` individuals on `r ncol(readRDS("data//heart_failure.RDS"))` variables, and is typically used to predict whether or not a patient will survive during the follow-up period, using several biomedical predictors.
 
 
-If you decide to work with the *Heart failure clinical records* data and work in `R Studio Cloud`, you can access the environment related to this workshop [here](https://rstudio.cloud/content/4342038), including a script that gets you started on installing and loading the required packages, and that imports the data for you. You can continue to work in this script.
+If you decide to work with the *Heart failure clinical records* data and work in `R Studio Cloud`, you can access the environment related to this workshop [here](https://rstudio.cloud/content/4342038), including a script `osf_synthetic.R` that gets you started on installing and loading the required packages, and that imports the data for you. You can continue to work in this script. Make sure to save the project on your account, so that your changes are not deleted if you, for some reason, have to refresh the browser.
 
 If you have `R Studio` installed on your own machine, you can download the *cleaned* version of the *Heart failure clinical records* data set from my GitHub and load it as `heart_failure`, by running the following line of code.
 
@@ -194,7 +194,7 @@ set.seed(123)
 synthetic <- syn(heart_failure)
 ```
 
-You have now created the object `synthetic`, which is of class `r class(synthetic)` and contains several pieces of information related to your synthetic data. We will quickly go over the most important output. 
+You have now created the object `synthetic`, which is of class ``r class(synthetic)`` and contains several pieces of information related to your synthetic data. We will quickly go over the most important output. 
 
 ---
 
@@ -211,6 +211,8 @@ Also, the first variable should have synthesis method `"sample"`, whereas all ot
 The visit sequence should increase sequentially from $1$ to the number of variables in your data set ($13$ if you are using the *Heart failure clinical records* data).
 Lastly, the predictor matrix shows which variables in the rows are used to predict the variable in the columns (and should be a lower triangular matrix containing ones, excluding the diagonal). 
 
+The output object `synthetic` contains additional information, that you can access by specifically asking for it, using, for example, `synthetic$smoothing`, which shows for which of the variables smoothing was applied. In general, you will not need most of this information, but sometimes it can be helpful to check whether more sophisticated arguments were passed successfully. 
+
 ---
 
 # Assessing utility on a univariate level
@@ -223,7 +225,7 @@ Additionally, the distributions of the synthetic data sets can be compared with 
 
 ---
 
-__3.__ Inspect the synthetic data by asking for `head(synthetic$syn)` and `tail(synthetic$syn)`, to check whether the synthetic data looks similar to the observed data. 
+__3.__ Inspect the synthetic data by asking for `head(synthetic$syn)` and `tail(synthetic$syn)`, to check whether the synthetic data looks similar to the observed data (which we inspected previously already). 
 
 
 ```{r, results = F}
@@ -287,7 +289,7 @@ In each of these figures, the distribution of the observed and synthetic data sh
 
 ---
 
-A more formal quantification of the similarity between the synthetic and the observed data is provided by the $pMSE$ values (there are tons of other utility measures available, see, for example [this paper](https://arxiv.org/pdf/2109.12717.pdf), for now, we will focus on the $pMSE$). These values can quantify univariate or multivariate similarity, but in the output displayed by `compare()`, they solely concern univariate similarity.
+A more formal quantification of the similarity between the synthetic and the observed data is provided by the $pMSE$ values. There are tons of other utility measures available, see, for example [this paper](https://arxiv.org/pdf/2109.12717.pdf), but for now, we will focus on the $pMSE$ (these utility measures tend to correlate highly anyway). These values can quantify univariate or multivariate similarity between the observed and synthetic data, but in the output of `compare()`, they solely concern univariate similarity.
 
 Technically, the $pMSE$ is defined by
 $$
